@@ -1,5 +1,5 @@
 import { querySql } from './db';
-import { Barbeiro, Servico, AgendamentoItem, SlotHorario } from './types';
+import { Barbeiro, Servico, AgendamentoItem, SlotHorario, BloqueioItem } from './types';
 import { generateGoogleCalendarUrl } from './googleCalendar';
 
 // -------------------------------------------------------------
@@ -139,6 +139,7 @@ export async function getHorariosLivres(
   if (barbeirosParaVerificar.length === 0) return [];
 
   const todosAgendamentos = await getAgendamentosDoDia(dataStr);
+  const todosBloqueios = await getBloqueiosDoDia(dataStr);
 
   const agora = new Date();
   const toleranciaLimpezaMin = 10; // 10 min de intervalo antes e depois de cada atendimento
@@ -163,6 +164,21 @@ export async function getHorariosLivres(
     let menorCargaAgendamentos = Infinity;
 
     for (const b of barbeirosParaVerificar) {
+      // 1. Verificar conflito com bloqueios do barbeiro ou da barbearia inteira
+      const conflitoBloqueio = todosBloqueios.some(bl => {
+        if (bl.barbeiro_id !== null && Number(bl.barbeiro_id) !== Number(b.id)) return false;
+        const blInicio = parseLocalDateTime(bl.data_hora_inicio).getTime();
+        const blFim = parseLocalDateTime(bl.data_hora_fim).getTime();
+        const slotInicioTempo = slotInicio.getTime();
+        const slotFimTempo = slotFim.getTime();
+        return slotInicioTempo < blFim && blInicio < slotFimTempo;
+      });
+
+      if (conflitoBloqueio) {
+        continue;
+      }
+
+      // 2. Verificar conflito com outros agendamentos existentes
       const conflito = todosAgendamentos.some(ag => {
         if (Number(ag.barbeiro_id) !== Number(b.id) || ag.status === 'Cancelado') return false;
         const agInicio = parseLocalDateTime(ag.data_hora_inicio).getTime();
@@ -219,12 +235,35 @@ async function getAgendamentosDoDia(dataStr: string): Promise<AgendamentoItem[]>
   }
 }
 
+export async function getBloqueiosDoDia(dataStr: string): Promise<BloqueioItem[]> {
+  try {
+    const sqlQuery = `
+      SELECT bl.id, bl.barbeiro_id, b.nome as barbeiro_nome,
+             CONVERT(varchar(19), bl.data_hora_inicio, 126) as data_hora_inicio,
+             CONVERT(varchar(19), bl.data_hora_fim, 126) as data_hora_fim,
+             bl.motivo,
+             CONVERT(varchar(19), bl.criado_em, 126) as criado_em
+      FROM Bloqueios bl
+      LEFT JOIN Barbeiros b ON bl.barbeiro_id = b.id
+      WHERE bl.data_hora_inicio < DATEADD(day, 1, CONVERT(datetime, ?, 120))
+        AND bl.data_hora_fim > CONVERT(datetime, ?, 120)
+      ORDER BY bl.data_hora_inicio ASC
+    `;
+    const inicioDia = `${dataStr} 00:00:00`;
+    return await querySql<BloqueioItem>(sqlQuery, [inicioDia, inicioDia]);
+  } catch (e) {
+    console.error('Erro ao consultar bloqueios do dia:', e);
+    return [];
+  }
+}
+
 // -------------------------------------------------------------
 // CRIAÇÃO DE AGENDAMENTO NO SQL SERVER (dev_database)
 // -------------------------------------------------------------
 interface NovoAgendamentoInput {
   clienteNome: string;
   clienteWhatsapp: string;
+  clienteEmail?: string | null;
   barbeiroId?: number | null;
   servicosIds: number[];
   dataHoraInicio: string;
@@ -251,6 +290,18 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
   const telLimpo = input.clienteWhatsapp.replace(/\D/g, '');
   if (telLimpo.length < 10 || telLimpo.length > 11) {
     return { sucesso: false, erro: 'Telefone inválido. Informe o DDD e o número com 10 ou 11 dígitos.', statusCode: 400 };
+  }
+
+  // Validação de e-mail opcional
+  let emailLimpo: string | null = null;
+  if (input.clienteEmail !== undefined && input.clienteEmail !== null) {
+    const rawEmail = String(input.clienteEmail).trim();
+    if (rawEmail.length > 0) {
+      if (rawEmail.length > 150 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        return { sucesso: false, erro: 'E-mail informado é inválido.', statusCode: 400 };
+      }
+      emailLimpo = rawEmail.toLowerCase();
+    }
   }
 
   if (input.observacao !== undefined && input.observacao !== null) {
@@ -366,13 +417,20 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
     const checksBarbeirosSql = candidatos
       .map(
         b => `
-      IF @barbeiroEscolhido IS NULL AND NOT EXISTS (
-          SELECT 1 FROM Agendamentos
-          WHERE barbeiro_id = ${Number(b.id)}
-            AND status <> 'Cancelado'
-            AND data_hora_inicio < DATEADD(minute, 10, @dtFim)
-            AND DATEADD(minute, 10, data_hora_fim) > @dtInicio
-      )
+      IF @barbeiroEscolhido IS NULL 
+         AND NOT EXISTS (
+           SELECT 1 FROM Agendamentos
+           WHERE barbeiro_id = ${Number(b.id)}
+             AND status <> 'Cancelado'
+             AND data_hora_inicio < DATEADD(minute, 10, @dtFim)
+             AND DATEADD(minute, 10, data_hora_fim) > @dtInicio
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM Bloqueios
+           WHERE (barbeiro_id IS NULL OR barbeiro_id = ${Number(b.id)})
+             AND data_hora_inicio < @dtFim
+             AND data_hora_fim > @dtInicio
+         )
       BEGIN
           SET @barbeiroEscolhido = ${Number(b.id)};
       END`
@@ -402,12 +460,12 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
 
       IF @clienteId IS NULL
       BEGIN
-          INSERT INTO Clientes (nome, whatsapp) VALUES (?, ?);
+          INSERT INTO Clientes (nome, whatsapp, email) VALUES (?, ?, ?);
           SET @clienteId = SCOPE_IDENTITY();
       END
       ELSE
       BEGIN
-          UPDATE Clientes SET nome = ? WHERE id = @clienteId;
+          UPDATE Clientes SET nome = ?, email = COALESCE(?, email) WHERE id = @clienteId;
       END
 
       -- Impede que o mesmo cliente faça dois agendamentos no mesmo horário (duplo clique)
@@ -455,7 +513,9 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
       telLimpo,
       nomeLimpo,
       telLimpo,
+      emailLimpo,
       nomeLimpo,
+      emailLimpo,
       obsLimpa,
     ]);
 
@@ -463,7 +523,7 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
     if (!row || !row.id || row.id <= 0) {
       return {
         sucesso: false,
-        erro: 'O horário selecionado já está ocupado para este barbeiro. Por favor, escolha outro horário disponível.',
+        erro: 'O horário selecionado já está ocupado ou bloqueado para este barbeiro. Por favor, escolha outro horário disponível.',
         statusCode: 409,
       };
     }
@@ -488,6 +548,7 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
         cliente_id: row.cliente_id,
         cliente_nome: nomeLimpo,
         cliente_whatsapp: telLimpo,
+        cliente_email: emailLimpo || undefined,
         barbeiro_id: barbeiroFinal.id,
         barbeiro_nome: barbeiroFinal.nome,
         data_hora_inicio: dtInicioIsoLocal,
@@ -518,7 +579,7 @@ export const STATUS_AGENDAMENTO_VALIDOS = ['Pendente', 'Confirmado', 'Concluído
 export async function listarAgendamentosAdmin(filtroBarbeiroId?: number): Promise<AgendamentoItem[]> {
   try {
     let query = `
-      SELECT a.id, a.cliente_id, c.nome as cliente_nome, c.whatsapp as cliente_whatsapp,
+      SELECT a.id, a.cliente_id, c.nome as cliente_nome, c.whatsapp as cliente_whatsapp, c.email as cliente_email,
              a.barbeiro_id, b.nome as barbeiro_nome,
              CONVERT(varchar(19), a.data_hora_inicio, 126) as data_hora_inicio,
              CONVERT(varchar(19), a.data_hora_fim, 126) as data_hora_fim,
@@ -566,6 +627,79 @@ export async function atualizarStatusAgendamento(
     return Boolean(rows && rows[0] && rows[0].afetados > 0);
   } catch (error) {
     console.error('Erro ao atualizar status no SQL Server:', error);
+    return false;
+  }
+}
+
+// -------------------------------------------------------------
+// GESTÃO DE BLOQUEIOS / HORÁRIOS TRAVADOS PELO BARBEIRO
+// -------------------------------------------------------------
+export async function getBloqueios(): Promise<BloqueioItem[]> {
+  try {
+    const query = `
+      SELECT bl.id, bl.barbeiro_id, b.nome as barbeiro_nome,
+             CONVERT(varchar(19), bl.data_hora_inicio, 126) as data_hora_inicio,
+             CONVERT(varchar(19), bl.data_hora_fim, 126) as data_hora_fim,
+             bl.motivo,
+             CONVERT(varchar(19), bl.criado_em, 126) as criado_em
+      FROM Bloqueios bl
+      LEFT JOIN Barbeiros b ON bl.barbeiro_id = b.id
+      WHERE bl.data_hora_fim >= DATEADD(day, -1, GETDATE())
+      ORDER BY bl.data_hora_inicio ASC
+    `;
+    return await querySql<BloqueioItem>(query);
+  } catch (error) {
+    console.error('Erro ao buscar bloqueios:', error);
+    return [];
+  }
+}
+
+export async function criarBloqueio(
+  barbeiroId: number | null,
+  dataHoraInicio: string,
+  dataHoraFim: string,
+  motivo?: string
+): Promise<{ sucesso: boolean; id?: number; erro?: string }> {
+  const dtInicio = parseLocalDateTime(dataHoraInicio);
+  const dtFim = parseLocalDateTime(dataHoraFim);
+
+  if (isNaN(dtInicio.getTime()) || isNaN(dtFim.getTime())) {
+    return { sucesso: false, erro: 'Data e horário de início ou término inválidos.' };
+  }
+
+  if (dtFim <= dtInicio) {
+    return { sucesso: false, erro: 'O horário de término deve ser posterior ao horário de início.' };
+  }
+
+  try {
+    const dtInicioSql = formatLocalSqlDateTime(dtInicio);
+    const dtFimSql = formatLocalSqlDateTime(dtFim);
+    const motivoFinal = motivo?.trim() || 'Horário travado pelo barbeiro';
+
+    const rows = await querySql<{ id: number }>(
+      `INSERT INTO Bloqueios (barbeiro_id, data_hora_inicio, data_hora_fim, motivo)
+       VALUES (?, CONVERT(datetime, ?, 120), CONVERT(datetime, ?, 120), ?);
+       SELECT SCOPE_IDENTITY() AS id;`,
+      [barbeiroId, dtInicioSql, dtFimSql, motivoFinal]
+    );
+
+    const novoId = rows && rows.length > 0 ? rows[0].id : undefined;
+    return { sucesso: true, id: novoId };
+  } catch (error: any) {
+    console.error('Erro ao criar bloqueio no banco:', error);
+    return { sucesso: false, erro: 'Falha ao salvar bloqueio: ' + error.message };
+  }
+}
+
+export async function removerBloqueio(id: number): Promise<boolean> {
+  try {
+    const rows = await querySql<{ afetados: number }>(
+      'SET NOCOUNT ON; DELETE FROM Bloqueios WHERE id = ?; SELECT @@ROWCOUNT AS afetados;',
+      [id]
+    );
+    return Boolean(rows && rows[0] && rows[0].afetados > 0);
+  } catch (error) {
+    console.error('Erro ao remover bloqueio:', error);
     return false;
   }
 }

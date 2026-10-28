@@ -4,12 +4,14 @@ const connectionString =
   process.env.DB_CONNECTION_STRING ||
   'Driver={ODBC Driver 18 for SQL Server};Server=localhost\\SQLEXPRESS;Database=dev_database;Trusted_Connection=yes;TrustServerCertificate=yes;';
 
+type OdbcPool = InstanceType<typeof Pool>;
+
 declare global {
   // eslint-disable-next-line no-var
-  var __barbeariaSqlPoolV2: Promise<Pool> | undefined;
+  var __barbeariaSqlPoolV2: Promise<OdbcPool> | undefined;
 }
 
-function getPool(): Promise<Pool> {
+function getPool(): Promise<OdbcPool> {
   if (!globalThis.__barbeariaSqlPoolV2) {
     const pool = new sqlOdbc.Pool({
       connectionString,

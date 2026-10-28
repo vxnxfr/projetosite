@@ -19,6 +19,7 @@ BEGIN
         id INT IDENTITY(1,1) PRIMARY KEY,
         nome NVARCHAR(100) NOT NULL,
         whatsapp VARCHAR(20) NOT NULL,
+        email NVARCHAR(150) NULL,
         criado_em DATETIME2 DEFAULT SYSDATETIME()
     );
 END
@@ -134,6 +135,13 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_Servicos_Ativo 
     ON Servicos(ativo)
     INCLUDE (nome, preco, duracao_min, categoria);
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Bloqueios_Barbeiro_Data' AND object_id = OBJECT_ID('Bloqueios'))
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Bloqueios_Barbeiro_Data 
+    ON Bloqueios(barbeiro_id, data_hora_inicio, data_hora_fim);
 END
 GO
 

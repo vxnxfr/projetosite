@@ -21,6 +21,7 @@ export interface AgendamentoItem {
   cliente_id: number;
   cliente_nome: string;
   cliente_whatsapp: string;
+  cliente_email?: string | null;
   barbeiro_id: number;
   barbeiro_nome: string;
   data_hora_inicio: string;
@@ -38,5 +39,30 @@ export interface SlotHorario {
   disponivel: boolean;
   barbeiro_id?: number;
   barbeiro_nome?: string;
+}
+
+export interface BloqueioItem {
+  id: number;
+  barbeiro_id: number | null; // null = todos os barbeiros
+  barbeiro_nome?: string | null;
+  data_hora_inicio: string;
+  data_hora_fim: string;
+  motivo?: string | null;
+  criado_em?: string;
+}
+
+export interface LembreteDisparoResult {
+  total: number;
+  enviados: number;
+  falhas: number;
+  detalhes: {
+    agendamentoId: number;
+    clienteNome: string;
+    clienteWhatsapp: string;
+    hora: string;
+    status: 'enviado' | 'falha' | 'simulado';
+    mensagem?: string;
+    linkWhatsapp?: string;
+  }[];
 }
 

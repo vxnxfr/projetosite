@@ -18,10 +18,12 @@ import {
   AlertCircle,
   HelpCircle,
   CheckCircle2,
-  CalendarPlus
+  CalendarPlus,
+  Mail
 } from 'lucide-react';
 import { Barbeiro, Servico, SlotHorario, AgendamentoItem } from '@/lib/types';
 import { getWhatsAppBarbeiro } from '@/lib/constants';
+import { getServiceImage } from '@/lib/serviceImages';
 
 export default function AgendamentoPage() {
   const [etapa, setEtapa] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -48,6 +50,7 @@ export default function AgendamentoPage() {
   const [horarioSelecionado, setHorarioSelecionado] = useState<string>('');
   const [nomeCliente, setNomeCliente] = useState<string>('');
   const [whatsappCliente, setWhatsappCliente] = useState<string>('');
+  const [emailCliente, setEmailCliente] = useState<string>('');
   const [observacao, setObservacao] = useState<string>('');
 
   // Status de envio e Agendamento finalizado
@@ -165,6 +168,7 @@ export default function AgendamentoPage() {
         body: JSON.stringify({
           clienteNome: nomeCliente,
           clienteWhatsapp: whatsappCliente,
+          clienteEmail: emailCliente.trim() || undefined,
           barbeiroId: barbeiroSelecionado,
           servicosIds: servicosSelecionados,
           dataHoraInicio,
@@ -249,12 +253,22 @@ export default function AgendamentoPage() {
                     }`}
                   >
                     <div className="flex items-center gap-3.5">
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors flex-shrink-0 ${
                         isSelected 
                           ? 'bg-[#D4AF37] border-[#D4AF37] text-black' 
                           : 'border-[#3D4359]'
                       }`}>
                         {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+
+                      {/* Miniatura do Serviço */}
+                      <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden border border-[#2B3042] flex-shrink-0 shadow-sm">
+                        <Image
+                          src={getServiceImage(s.nome)}
+                          alt={s.nome}
+                          fill
+                          className="object-cover"
+                        />
                       </div>
 
                       <div>
@@ -563,6 +577,29 @@ export default function AgendamentoPage() {
               </div>
 
               <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="email-input" className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-wider">
+                    E-mail para Confirmação & Calendário:
+                  </label>
+                  <span className="text-[10px] text-[#8E8B82] uppercase font-bold">Opcional / Recomendado</span>
+                </div>
+                <div className="relative">
+                  <input
+                    id="email-input"
+                    type="email"
+                    placeholder="seuemail@gmail.com"
+                    value={emailCliente}
+                    onChange={e => setEmailCliente(e.target.value)}
+                    className="w-full bg-[#181B26] border border-[#2D3345] text-[#F5F3EF] pl-10 pr-4 py-3 rounded-lg focus:outline-none focus:border-[#D4AF37] text-sm"
+                  />
+                  <Mail className="w-4 h-4 text-[#8E8B82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                <p className="text-[11px] text-[#8E8B82] mt-1">
+                  Receba o comprovante oficial e o convite para adicionar automaticamente à sua agenda Google/Outlook.
+                </p>
+              </div>
+
+              <div>
                 <label htmlFor="obs-input" className="block text-xs font-semibold text-[#B8B5AE] uppercase tracking-wider mb-1.5">
                   Observações (Opcional):
                 </label>
@@ -648,6 +685,15 @@ export default function AgendamentoPage() {
                   ))}
                 </div>
               </div>
+
+              {agendamentoConcluido.cliente_email && (
+                <div className="border-t border-[#252A38] pt-3 flex items-center gap-2.5 text-xs text-emerald-400 bg-emerald-950/20 p-2.5 rounded-lg border border-emerald-800/40">
+                  <Mail className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    Comprovante e convite do Google Agenda enviados para: <strong>{agendamentoConcluido.cliente_email}</strong>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Ações Especiais: Google Agenda & WhatsApp */}
