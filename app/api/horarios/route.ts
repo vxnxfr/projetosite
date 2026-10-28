@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const data = searchParams.get('data'); // YYYY-MM-DD
     const duracaoStr = searchParams.get('duracao');
-    const barbeiroIdStr = searchParams.get('barbeiroId');
+    const barbeiroIdStr = searchParams.get('barbeiro_id') || searchParams.get('barbeiroId');
 
     if (!data || !isValidDateStr(data)) {
       return NextResponse.json(

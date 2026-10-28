@@ -341,24 +341,39 @@ export async function enviarEmailConfirmacao(params: EnviarEmailConfirmacaoParam
   const smtpPass = process.env.SMTP_PASS;
   const remetente = process.env.SMTP_FROM || 'Barbearia Val <valbarbearia1@gmail.com>';
 
-  if (smtpHost && smtpUser && smtpPass) {
+  if (smtpUser && smtpPass) {
     try {
       const nodemailer = await import('nodemailer');
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        }
-      });
+      
+      const isGmail = (smtpHost && smtpHost.includes('gmail')) || smtpUser.includes('@gmail.com');
+      const transporter = nodemailer.createTransport(
+        isGmail
+          ? {
+              service: 'gmail',
+              auth: {
+                user: smtpUser,
+                pass: smtpPass.replace(/\s+/g, ''), // Remove espaços acidentais de senhas de app do Google
+              },
+            }
+          : {
+              host: smtpHost || 'smtp.gmail.com',
+              port: smtpPort,
+              secure: smtpPort === 465,
+              auth: {
+                user: smtpUser,
+                pass: smtpPass,
+              },
+              tls: {
+                rejectUnauthorized: false,
+              },
+            }
+      );
 
       await transporter.sendMail({
         from: remetente,
         to: params.clienteEmail,
-        // Também envia cópia oculta para a barbearia para o Google Agenda do barbeiro registrar
-        bcc: 'valbarbearia1@gmail.com',
+        // Também envia cópia para a barbearia para o Google Agenda do barbeiro registrar
+        bcc: smtpUser,
         subject: assunto,
         html: htmlContent,
         icalEvent: {
@@ -368,7 +383,7 @@ export async function enviarEmailConfirmacao(params: EnviarEmailConfirmacaoParam
         }
       });
 
-      console.log(`[E-mail Enviado] Confirmação enviada para ${params.clienteEmail}`);
+      console.log(`[E-mail Enviado com Sucesso] Confirmação enviada para ${params.clienteEmail}`);
       return { enviado: true, mensagem: `E-mail enviado com sucesso para ${params.clienteEmail}` };
     } catch (err: any) {
       console.error('[Falha no Envio de E-mail]', err);

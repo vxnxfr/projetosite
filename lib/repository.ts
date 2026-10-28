@@ -182,11 +182,11 @@ export async function getHorariosLivres(
       const conflito = todosAgendamentos.some(ag => {
         if (Number(ag.barbeiro_id) !== Number(b.id) || ag.status === 'Cancelado') return false;
         const agInicio = parseLocalDateTime(ag.data_hora_inicio).getTime();
-        const agFimComTolerancia = parseLocalDateTime(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
+        const agFim = parseLocalDateTime(ag.data_hora_fim).getTime();
         const slotInicioTempo = slotInicio.getTime();
-        const slotFimComTolerancia = slotFim.getTime() + (toleranciaLimpezaMin * 60000);
+        const slotFimTempo = slotFim.getTime();
 
-        return (slotInicioTempo < agFimComTolerancia && agInicio < slotFimComTolerancia);
+        return (slotInicioTempo < agFim && agInicio < slotFimTempo);
       });
 
       if (!conflito) {
@@ -422,8 +422,8 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
            SELECT 1 FROM Agendamentos
            WHERE barbeiro_id = ${Number(b.id)}
              AND status <> 'Cancelado'
-             AND data_hora_inicio < DATEADD(minute, 10, @dtFim)
-             AND DATEADD(minute, 10, data_hora_fim) > @dtInicio
+             AND data_hora_inicio < @dtFim
+             AND data_hora_fim > @dtInicio
          )
          AND NOT EXISTS (
            SELECT 1 FROM Bloqueios
