@@ -44,29 +44,47 @@ export function parseLocalDateTime(str: string): Date {
 }
 
 // -------------------------------------------------------------
-// SERVIÇOS E BARBEIROS (DIRETO DO SQL SERVER)
+// SERVIÇOS E BARBEIROS (COM CACHE EM MEMÓRIA PARA ALTA DEMANDA)
 // -------------------------------------------------------------
-export async function getServicos(): Promise<Servico[]> {
+let servicosCache: { data: Servico[]; expiresAt: number } | null = null;
+let barbeirosCache: { data: Barbeiro[]; expiresAt: number } | null = null;
+const CACHE_TTL_MS = 60 * 1000; // 60 segundos de cache para suportar milhares de requisições simultâneas
+
+export async function getServicos(forceRefresh = false): Promise<Servico[]> {
+  const now = Date.now();
+  if (!forceRefresh && servicosCache && servicosCache.expiresAt > now) {
+    return servicosCache.data;
+  }
   try {
     const rows = await querySql<Servico>(
       'SELECT id, nome, categoria, CAST(preco AS FLOAT) as preco, duracao_min, ativo FROM Servicos WHERE ativo = 1 ORDER BY categoria, nome'
     );
+    if (rows && rows.length > 0) {
+      servicosCache = { data: rows, expiresAt: now + CACHE_TTL_MS };
+    }
     return rows;
   } catch (error) {
     console.error('Falha ao buscar serviços no SQL Server:', error);
-    return [];
+    return servicosCache ? servicosCache.data : [];
   }
 }
 
-export async function getBarbeiros(): Promise<Barbeiro[]> {
+export async function getBarbeiros(forceRefresh = false): Promise<Barbeiro[]> {
+  const now = Date.now();
+  if (!forceRefresh && barbeirosCache && barbeirosCache.expiresAt > now) {
+    return barbeirosCache.data;
+  }
   try {
     const rows = await querySql<Barbeiro>(
       'SELECT id, nome, foto_url, bio, ativo FROM Barbeiros WHERE ativo = 1 ORDER BY id'
     );
+    if (rows && rows.length > 0) {
+      barbeirosCache = { data: rows, expiresAt: now + CACHE_TTL_MS };
+    }
     return rows;
   } catch (error) {
     console.error('Falha ao buscar barbeiros no SQL Server:', error);
-    return [];
+    return barbeirosCache ? barbeirosCache.data : [];
   }
 }
 
@@ -268,18 +286,52 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
     // 2. Formatar data em horário local para SQL Server (YYYY-MM-DD HH:mm:ss)
     const dtInicioSql = formatLocalSqlDateTime(dtInicio);
     const dtFimSql = formatLocalSqlDateTime(dtFim);
+    const dtFimToleranciaSql = formatLocalSqlDateTime(new Date(dtFim.getTime() + toleranciaLimpezaMin * 60000));
     const dtInicioIsoLocal = formatLocalIsoDateTime(dtInicio);
     const dtFimIsoLocal = formatLocalIsoDateTime(dtFim);
 
-    // 3. Inserir Agendamento no SQL Server
-    const novoAgendamento = await querySql<{ id: number }>(
-      `INSERT INTO Agendamentos (cliente_id, barbeiro_id, data_hora_inicio, data_hora_fim, status, observacao)
-       OUTPUT INSERTED.id
-       VALUES (?, ?, CONVERT(datetime, ?, 120), CONVERT(datetime, ?, 120), 'Pendente', ?)`,
-      [clienteId, barbeiroFinal.id, dtInicioSql, dtFimSql, input.observacao || null]
-    );
+    // 3. Inserir Agendamento no SQL Server de forma ATÔMICA com trava de concorrência (UPDLOCK, HOLDLOCK)
+    const atomicQuery = `
+      BEGIN TRANSACTION;
+      IF EXISTS (
+          SELECT 1 FROM Agendamentos WITH (UPDLOCK, HOLDLOCK)
+          WHERE barbeiro_id = ?
+            AND status <> 'Cancelado'
+            AND data_hora_inicio < CONVERT(datetime, ?, 120)
+            AND data_hora_fim > CONVERT(datetime, ?, 120)
+      )
+      BEGIN
+          ROLLBACK TRANSACTION;
+          SELECT -1 AS id;
+      END
+      ELSE
+      BEGIN
+          INSERT INTO Agendamentos (cliente_id, barbeiro_id, data_hora_inicio, data_hora_fim, status, observacao)
+          OUTPUT INSERTED.id
+          VALUES (?, ?, CONVERT(datetime, ?, 120), CONVERT(datetime, ?, 120), 'Pendente', ?);
+          COMMIT TRANSACTION;
+      END
+    `;
 
-    const agendamentoId = novoAgendamento[0].id;
+    const novoAgendamento = await querySql<{ id: number }>(atomicQuery, [
+      barbeiroFinal.id,
+      dtFimToleranciaSql,
+      dtInicioSql,
+      clienteId,
+      barbeiroFinal.id,
+      dtInicioSql,
+      dtFimSql,
+      input.observacao || null
+    ]);
+
+    const agendamentoId = novoAgendamento && novoAgendamento.length > 0 ? novoAgendamento[0].id : -1;
+
+    if (!agendamentoId || agendamentoId <= 0) {
+      return {
+        sucesso: false,
+        erro: 'Este horário acabou de ser reservado por outro cliente em um agendamento simultâneo. Por favor, escolha outro horário disponível.'
+      };
+    }
 
     // 4. Inserir Serviços do Agendamento (relação N:N com histórico de preço e duração)
     for (const s of servicosEscolhidos) {

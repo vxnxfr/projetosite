@@ -112,12 +112,28 @@ BEGIN
 END
 GO
 
--- 8. Índices de Otimização e Conflito
+-- 8. Índices de Alta Performance para Grande Demanda
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Agendamentos_Barbeiro_Horario' AND object_id = OBJECT_ID('Agendamentos'))
 BEGIN
     CREATE NONCLUSTERED INDEX IX_Agendamentos_Barbeiro_Horario 
     ON Agendamentos(barbeiro_id, data_hora_inicio, data_hora_fim)
-    WHERE status NOT IN ('Cancelado');
+    INCLUDE (status);
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Clientes_Whatsapp' AND object_id = OBJECT_ID('Clientes'))
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Clientes_Whatsapp 
+    ON Clientes(whatsapp)
+    INCLUDE (nome);
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Servicos_Ativo' AND object_id = OBJECT_ID('Servicos'))
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Servicos_Ativo 
+    ON Servicos(ativo)
+    INCLUDE (nome, preco, duracao_min, categoria);
 END
 GO
 
