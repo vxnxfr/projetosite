@@ -7,10 +7,14 @@ GO
 
 -- Barbeiros Iniciais
 IF NOT EXISTS (SELECT * FROM Barbeiros WHERE nome = 'Val')
-    INSERT INTO Barbeiros (nome, bio, ativo) VALUES ('Val', 'Mestre Barbeiro fundador, especialista em cortes clássicos e barboterapia.', 1);
+    INSERT INTO Barbeiros (nome, foto_url, bio, ativo) VALUES ('Val', '/images/barbeiro-val.jpg', 'Mestre Barbeiro fundador, especialista em cortes clássicos e barboterapia.', 1);
+ELSE
+    UPDATE Barbeiros SET foto_url = '/images/barbeiro-val.jpg' WHERE nome = 'Val';
 
 IF NOT EXISTS (SELECT * FROM Barbeiros WHERE nome = 'Heitor')
-    INSERT INTO Barbeiros (nome, bio, ativo) VALUES ('Heitor', 'Barbeiro especialista em degradês modernos, barba alinhada e químicas.', 1);
+    INSERT INTO Barbeiros (nome, foto_url, bio, ativo) VALUES ('Heitor', '/images/barbeiro-heitor.jpg', 'Barbeiro especialista em degradês modernos, barba alinhada e químicas.', 1);
+ELSE
+    UPDATE Barbeiros SET foto_url = '/images/barbeiro-heitor.jpg' WHERE nome = 'Heitor';
 GO
 
 -- Serviços Oficiais

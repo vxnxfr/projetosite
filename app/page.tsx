@@ -192,11 +192,13 @@ export default async function HomePage() {
               {/* Card Val */}
               <div className="group bg-[#13161F] border border-[#262B3A] hover:border-[#D4AF37]/50 rounded-2xl p-6 transition-all duration-300 shadow-lg">
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-[#1D212E] border border-[#D4AF37]/40 flex-shrink-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <Scissors className="w-7 h-7 text-[#D4AF37] mx-auto mb-1" />
-                      <span className="text-[10px] uppercase font-bold text-[#B8B5AE]">Val</span>
-                    </div>
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-[#1D212E] border-2 border-[#D4AF37]/50 flex-shrink-0 shadow-md">
+                    <Image
+                      src="/images/barbeiro-val.jpg"
+                      alt="Mestre Barbeiro Val"
+                      fill
+                      className="object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                    />
                   </div>
                   <div className="space-y-2.5 text-center sm:text-left flex-grow">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
@@ -217,11 +219,13 @@ export default async function HomePage() {
               {/* Card Heitor */}
               <div className="group bg-[#13161F] border border-[#262B3A] hover:border-[#D4AF37]/50 rounded-2xl p-6 transition-all duration-300 shadow-lg">
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-[#1D212E] border border-[#D4AF37]/40 flex-shrink-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <Scissors className="w-7 h-7 text-[#D4AF37] mx-auto mb-1" />
-                      <span className="text-[10px] uppercase font-bold text-[#B8B5AE]">Heitor</span>
-                    </div>
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-[#1D212E] border-2 border-[#D4AF37]/50 flex-shrink-0 shadow-md">
+                    <Image
+                      src="/images/barbeiro-heitor.jpg"
+                      alt="Barbeiro Heitor"
+                      fill
+                      className="object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                    />
                   </div>
                   <div className="space-y-2.5 text-center sm:text-left flex-grow">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">

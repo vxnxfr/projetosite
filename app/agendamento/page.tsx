@@ -367,12 +367,17 @@ export default function AgendamentoPage() {
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center border transition-colors ${
+                      <div className={`relative w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 transition-colors flex-shrink-0 ${
                         isSelected 
-                          ? 'bg-[#D4AF37] border-[#D4AF37] text-black' 
-                          : 'bg-[#1C202C] border-[#2E3345] text-[#D4AF37]'
+                          ? 'border-[#D4AF37] ring-2 ring-[#D4AF37]/30' 
+                          : 'border-[#2E3345]'
                       }`}>
-                        <Scissors className="w-5 h-5" />
+                        <Image
+                          src={b.foto_url || (b.nome.toLowerCase().includes('heitor') ? '/images/barbeiro-heitor.jpg' : '/images/barbeiro-val.jpg')}
+                          alt={b.nome}
+                          fill
+                          className="object-cover object-top"
+                        />
                       </div>
                       <div>
                         <h3 className="font-semibold text-base text-[#F5F3EF]">{b.nome}</h3>
