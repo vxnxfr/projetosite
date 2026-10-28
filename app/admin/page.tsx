@@ -25,13 +25,18 @@ export default function AdminPage() {
   const [filtroBarbeiro, setFiltroBarbeiro] = useState<string>('todos');
   const [carregando, setCarregando] = useState<boolean>(true);
 
+  const adminHeaders = {
+    'Content-Type': 'application/json',
+    'x-admin-key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'val-admin-2026',
+  };
+
   const carregarDados = () => {
     setCarregando(true);
     const url = filtroBarbeiro === 'todos' 
       ? '/api/admin/agendamentos' 
       : `/api/admin/agendamentos?barbeiroId=${filtroBarbeiro}`;
 
-    fetch(url)
+    fetch(url, { headers: adminHeaders, cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAgendamentos(data);
@@ -56,7 +61,7 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin/agendamentos', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders,
         body: JSON.stringify({ id, status: novoStatus })
       });
       if (res.ok) {

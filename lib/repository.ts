@@ -21,26 +21,40 @@ export function formatLocalDateOnly(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+export function isValidDateStr(dataStr: string): boolean {
+  if (typeof dataStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+    return false;
+  }
+  const [y, m, d] = dataStr.split('-').map(Number);
+  if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) {
+    return false;
+  }
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
 export function parseLocalDateTime(str: string): Date {
-  if (!str) return new Date(NaN);
-  // Se terminar com Z (UTC ISO), new Date(str) já converte para hora local nos getters
+  if (!str || typeof str !== 'string') return new Date(NaN);
   if (str.endsWith('Z')) {
     return new Date(str);
   }
-  // Formato "YYYY-MM-DDTHH:mm:ss" ou "YYYY-MM-DD HH:mm:ss"
   const clean = str.replace('T', ' ').trim();
-  const [datePart, timePart = '00:00:00'] = clean.split(' ');
-  if (!datePart || !timePart) return new Date(NaN);
+  const parts = clean.split(' ');
+  if (parts.length !== 2) return new Date(NaN);
+  const [datePart, timePart] = parts;
+  if (!isValidDateStr(datePart)) return new Date(NaN);
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(timePart)) return new Date(NaN);
+
   const [y, m, d] = datePart.split('-').map(Number);
   const timePieces = timePart.split(':');
-  if (timePieces.length < 2) return new Date(NaN);
   const hh = parseInt(timePieces[0], 10);
   const mm = parseInt(timePieces[1], 10);
   const ss = timePieces[2] ? parseInt(timePieces[2], 10) : 0;
-  if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(hh) || isNaN(mm)) {
+
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) {
     return new Date(NaN);
   }
-  return new Date(y, m - 1, d, hh, mm, ss || 0);
+  return new Date(y, m - 1, d, hh, mm, ss);
 }
 
 // -------------------------------------------------------------
@@ -103,6 +117,9 @@ export async function getHorariosLivres(
   duracaoTotalMin: number,
   barbeiroId?: number | null
 ): Promise<SlotHorario[]> {
+  if (!isValidDateStr(dataStr)) return [];
+  if (!Number.isFinite(duracaoTotalMin) || duracaoTotalMin <= 0 || duracaoTotalMin > 480) return [];
+
   const [year, month, day] = dataStr.split('-').map(Number);
   const dataAlvo = new Date(year, month - 1, day);
   const diaSemana = dataAlvo.getDay();
@@ -116,13 +133,15 @@ export async function getHorariosLivres(
 
   const barbeiros = await getBarbeiros();
   const barbeirosParaVerificar = barbeiroId
-    ? barbeiros.filter(b => b.id === barbeiroId)
+    ? barbeiros.filter(b => Number(b.id) === Number(barbeiroId))
     : barbeiros;
+
+  if (barbeirosParaVerificar.length === 0) return [];
 
   const todosAgendamentos = await getAgendamentosDoDia(dataStr);
 
   const agora = new Date();
-  const toleranciaLimpezaMin = 10; // 10 min de intervalo confirmado pelo cliente
+  const toleranciaLimpezaMin = 10; // 10 min de intervalo antes e depois de cada atendimento
   const antecedenciaMinutos = 30; // 30 min mínimo antes de começar
 
   const slots: SlotHorario[] = [];
@@ -149,9 +168,9 @@ export async function getHorariosLivres(
         const agInicio = parseLocalDateTime(ag.data_hora_inicio).getTime();
         const agFimComTolerancia = parseLocalDateTime(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
         const slotInicioTempo = slotInicio.getTime();
-        const slotFimTempo = slotFim.getTime();
+        const slotFimComTolerancia = slotFim.getTime() + (toleranciaLimpezaMin * 60000);
 
-        return (slotInicioTempo < agFimComTolerancia && slotFimTempo > agInicio);
+        return (slotInicioTempo < agFimComTolerancia && agInicio < slotFimComTolerancia);
       });
 
       if (!conflito) {
@@ -187,10 +206,12 @@ async function getAgendamentosDoDia(dataStr: string): Promise<AgendamentoItem[]>
       FROM Agendamentos a
       JOIN Clientes c ON a.cliente_id = c.id
       JOIN Barbeiros b ON a.barbeiro_id = b.id
-      WHERE CONVERT(varchar(10), a.data_hora_inicio, 23) = ?
+      WHERE a.data_hora_inicio >= CONVERT(datetime, ?, 120)
+        AND a.data_hora_inicio < DATEADD(day, 1, CONVERT(datetime, ?, 120))
         AND a.status <> 'Cancelado'
     `;
-    const rows = await querySql<AgendamentoItem>(sqlQuery, [dataStr]);
+    const inicioDia = `${dataStr} 00:00:00`;
+    const rows = await querySql<AgendamentoItem>(sqlQuery, [inicioDia, inicioDia]);
     return rows;
   } catch (e) {
     console.error('Erro ao consultar agendamentos do dia no SQL Server:', e);
@@ -214,16 +235,52 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
   sucesso: boolean;
   agendamento?: AgendamentoItem;
   erro?: string;
+  statusCode?: 400 | 409 | 500;
 }> {
+  if (typeof input.clienteNome !== 'string') {
+    return { sucesso: false, erro: 'Nome do cliente inválido.', statusCode: 400 };
+  }
+  const nomeLimpo = input.clienteNome.trim();
+  if (nomeLimpo.length < 2 || nomeLimpo.length > 100) {
+    return { sucesso: false, erro: 'O nome deve ter entre 2 e 100 caracteres.', statusCode: 400 };
+  }
+
+  if (typeof input.clienteWhatsapp !== 'string') {
+    return { sucesso: false, erro: 'Telefone inválido.', statusCode: 400 };
+  }
   const telLimpo = input.clienteWhatsapp.replace(/\D/g, '');
   if (telLimpo.length < 10 || telLimpo.length > 11) {
-    return { sucesso: false, erro: 'Telefone inválido. Informe o DDD e o número com 10 ou 11 dígitos.' };
+    return { sucesso: false, erro: 'Telefone inválido. Informe o DDD e o número com 10 ou 11 dígitos.', statusCode: 400 };
+  }
+
+  if (input.observacao !== undefined && input.observacao !== null) {
+    if (typeof input.observacao !== 'string' || input.observacao.length > 500) {
+      return { sucesso: false, erro: 'A observação deve ter no máximo 500 caracteres.', statusCode: 400 };
+    }
+  }
+  const obsLimpa = input.observacao ? input.observacao.trim() : null;
+
+  if (!Array.isArray(input.servicosIds) || input.servicosIds.length === 0 || input.servicosIds.length > 10) {
+    return { sucesso: false, erro: 'Selecione entre 1 e 10 serviços válidos.', statusCode: 400 };
+  }
+  const idsUnicos: number[] = [];
+  for (const rawId of input.servicosIds) {
+    const numId = Number(rawId);
+    if (!Number.isInteger(numId) || numId <= 0) {
+      return { sucesso: false, erro: 'ID de serviço inválido.', statusCode: 400 };
+    }
+    if (!idsUnicos.includes(numId)) {
+      idsUnicos.push(numId);
+    }
   }
 
   const todosServicos = await getServicos();
-  const servicosEscolhidos = todosServicos.filter(s => input.servicosIds.includes(s.id));
-  if (servicosEscolhidos.length === 0) {
-    return { sucesso: false, erro: 'Selecione ao menos um serviço para agendar.' };
+  const servicosEscolhidos = idsUnicos
+    .map(id => todosServicos.find(s => Number(s.id) === id))
+    .filter((s): s is Servico => Boolean(s));
+
+  if (servicosEscolhidos.length !== idsUnicos.length) {
+    return { sucesso: false, erro: 'Um ou mais serviços selecionados não existem.', statusCode: 400 };
   }
 
   const duracaoTotalMin = servicosEscolhidos.reduce((acc, s) => acc + s.duracao_min, 0);
@@ -231,157 +288,233 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
 
   const dtInicio = parseLocalDateTime(input.dataHoraInicio);
   if (isNaN(dtInicio.getTime())) {
-    return { sucesso: false, erro: 'Data e horário de início inválidos ou incompletos. Por favor, volte ao Passo 3 e selecione um horário.' };
+    return { sucesso: false, erro: 'Data e horário de início inválidos ou incompletos. Por favor, volte ao Passo 3 e selecione um horário.', statusCode: 400 };
   }
+
+  // Validar granularidade de 30 minutos
+  if (dtInicio.getMinutes() % 30 !== 0 || dtInicio.getSeconds() !== 0) {
+    return { sucesso: false, erro: 'Os agendamentos devem iniciar em intervalos de 30 minutos (ex: 09:00, 09:30).', statusCode: 400 };
+  }
+
+  // Validar antecedência mínima (30 min) e limite máximo no futuro (365 dias)
+  const agora = new Date();
+  const diffMinutosAgora = (dtInicio.getTime() - agora.getTime()) / 60000;
+  if (diffMinutosAgora < 30) {
+    return { sucesso: false, erro: 'O agendamento deve ser feito com pelo menos 30 minutos de antecedência.', statusCode: 400 };
+  }
+  const diffDiasFuturo = diffMinutosAgora / (60 * 24);
+  if (diffDiasFuturo > 365) {
+    return { sucesso: false, erro: 'Não é permitido agendar com mais de 1 ano de antecedência.', statusCode: 400 };
+  }
+
   const dtFim = new Date(dtInicio.getTime() + duracaoTotalMin * 60000);
   const dataDiaStr = formatLocalDateOnly(dtInicio);
 
-  const barbeiros = await getBarbeiros();
-  const todosAgendamentosDia = await getAgendamentosDoDia(dataDiaStr);
-  const toleranciaLimpezaMin = 10;
+  // Validar dia da semana e horário de funcionamento
+  const expediente = getHorarioFuncionamento(dtInicio.getDay());
+  if (!expediente) {
+    return { sucesso: false, erro: 'A barbearia permanece fechada neste dia da semana (segunda-feira).', statusCode: 400 };
+  }
+  const [abreH, abreM] = expediente.abre.split(':').map(Number);
+  const [fechaH, fechaM] = expediente.fecha.split(':').map(Number);
+  const abreMin = abreH * 60 + abreM;
+  const fechaMin = fechaH * 60 + fechaM;
+  const inicioMin = dtInicio.getHours() * 60 + dtInicio.getMinutes();
+  const fimMin = inicioMin + duracaoTotalMin;
 
-  let barbeiroFinal: Barbeiro | null = null;
-  const candidatos = input.barbeiroId
-    ? barbeiros.filter(b => Number(b.id) === Number(input.barbeiroId))
-    : barbeiros;
-
-  let menorCarga = Infinity;
-  for (const b of candidatos) {
-    const conflito = todosAgendamentosDia.some(ag => {
-      if (Number(ag.barbeiro_id) !== Number(b.id) || ag.status === 'Cancelado') return false;
-      const agIni = parseLocalDateTime(ag.data_hora_inicio).getTime();
-      const agFimTolerancia = parseLocalDateTime(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
-      return (dtInicio.getTime() < agFimTolerancia && dtFim.getTime() > agIni);
-    });
-
-    if (!conflito) {
-      const carga = todosAgendamentosDia.filter(ag => Number(ag.barbeiro_id) === Number(b.id) && ag.status !== 'Cancelado').length;
-      if (carga < menorCarga) {
-        menorCarga = carga;
-        barbeiroFinal = b;
-      }
-    }
+  if (inicioMin < abreMin || fimMin > fechaMin || formatLocalDateOnly(dtFim) !== dataDiaStr) {
+    return {
+      sucesso: false,
+      erro: `Horário fora do expediente de funcionamento (${expediente.abre} às ${expediente.fecha}).`,
+      statusCode: 400
+    };
   }
 
-  if (!barbeiroFinal) {
-    return { sucesso: false, erro: 'O horário selecionado já está ocupado para este barbeiro. Por favor, escolha outro horário.' };
+  const barbeiros = await getBarbeiros();
+  let candidatos: Barbeiro[];
+  if (input.barbeiroId !== undefined && input.barbeiroId !== null) {
+    const bId = Number(input.barbeiroId);
+    if (!Number.isInteger(bId) || bId <= 0) {
+      return { sucesso: false, erro: 'Barbeiro inválido.', statusCode: 400 };
+    }
+    const encontrado = barbeiros.find(b => Number(b.id) === bId);
+    if (!encontrado) {
+      return { sucesso: false, erro: 'O barbeiro selecionado não foi encontrado.', statusCode: 400 };
+    }
+    candidatos = [encontrado];
+  } else {
+    // Ordena os barbeiros pela menor carga do dia para equilibrar os agendamentos "sem preferência"
+    const todosAgendamentosDia = await getAgendamentosDoDia(dataDiaStr);
+    candidatos = [...barbeiros].sort((a, b) => {
+      const cargaA = todosAgendamentosDia.filter(ag => Number(ag.barbeiro_id) === Number(a.id) && ag.status !== 'Cancelado').length;
+      const cargaB = todosAgendamentosDia.filter(ag => Number(ag.barbeiro_id) === Number(b.id) && ag.status !== 'Cancelado').length;
+      return cargaA - cargaB;
+    });
+  }
+
+  if (candidatos.length === 0) {
+    return { sucesso: false, erro: 'Nenhum barbeiro disponível.', statusCode: 409 };
   }
 
   try {
-    // 1. Cadastrar ou obter cliente
-    const clienteRows = await querySql<{ id: number }>('SELECT id FROM Clientes WHERE whatsapp = ?', [telLimpo]);
-    let clienteId: number;
-
-    if (clienteRows.length > 0) {
-      clienteId = clienteRows[0].id;
-      await querySql('UPDATE Clientes SET nome = ? WHERE id = ?', [input.clienteNome, clienteId]);
-    } else {
-      const novoCli = await querySql<{ id: number }>(
-        'INSERT INTO Clientes (nome, whatsapp) OUTPUT INSERTED.id VALUES (?, ?)',
-        [input.clienteNome, telLimpo]
-      );
-      clienteId = novoCli[0].id;
-    }
-
-    // 2. Formatar data em horário local para SQL Server (YYYY-MM-DD HH:mm:ss)
     const dtInicioSql = formatLocalSqlDateTime(dtInicio);
     const dtFimSql = formatLocalSqlDateTime(dtFim);
-    const dtFimToleranciaSql = formatLocalSqlDateTime(new Date(dtFim.getTime() + toleranciaLimpezaMin * 60000));
     const dtInicioIsoLocal = formatLocalIsoDateTime(dtInicio);
     const dtFimIsoLocal = formatLocalIsoDateTime(dtFim);
 
-    // 3. Inserir Agendamento no SQL Server de forma ATÔMICA com trava de concorrência (UPDLOCK, HOLDLOCK)
-    const atomicQuery = `
-      BEGIN TRANSACTION;
-      IF EXISTS (
-          SELECT 1 FROM Agendamentos WITH (UPDLOCK, HOLDLOCK)
-          WHERE barbeiro_id = ?
+    // Monta verificação atômica para cada barbeiro candidato em ordem de preferência/menor carga
+    const checksBarbeirosSql = candidatos
+      .map(
+        b => `
+      IF @barbeiroEscolhido IS NULL AND NOT EXISTS (
+          SELECT 1 FROM Agendamentos
+          WHERE barbeiro_id = ${Number(b.id)}
             AND status <> 'Cancelado'
-            AND data_hora_inicio < CONVERT(datetime, ?, 120)
-            AND data_hora_fim > CONVERT(datetime, ?, 120)
+            AND data_hora_inicio < DATEADD(minute, 10, @dtFim)
+            AND DATEADD(minute, 10, data_hora_fim) > @dtInicio
       )
       BEGIN
-          ROLLBACK TRANSACTION;
-          SELECT -1 AS id;
+          SET @barbeiroEscolhido = ${Number(b.id)};
+      END`
+      )
+      .join('\n');
+
+    const insertServicosValuesSql = servicosEscolhidos
+      .map(s => `(@agendamentoId, ${Number(s.id)}, ${Number(s.preco).toFixed(2)}, ${Number(s.duracao_min)})`)
+      .join(', ');
+
+    const atomicQuery = `
+      SET NOCOUNT ON;
+      SET XACT_ABORT ON;
+      BEGIN TRANSACTION;
+
+      EXEC sp_getapplock
+        @Resource = 'BarbeariaVal_Agendamento_Mutex',
+        @LockMode = 'Exclusive',
+        @LockOwner = 'Transaction',
+        @LockTimeout = 15000;
+
+      DECLARE @dtInicio DATETIME = CONVERT(datetime, ?, 120);
+      DECLARE @dtFim DATETIME = CONVERT(datetime, ?, 120);
+
+      DECLARE @clienteId INT = NULL;
+      SELECT TOP 1 @clienteId = id FROM Clientes WHERE whatsapp = ?;
+
+      IF @clienteId IS NULL
+      BEGIN
+          INSERT INTO Clientes (nome, whatsapp) VALUES (?, ?);
+          SET @clienteId = SCOPE_IDENTITY();
       END
       ELSE
       BEGIN
-          INSERT INTO Agendamentos (cliente_id, barbeiro_id, data_hora_inicio, data_hora_fim, status, observacao)
-          OUTPUT INSERTED.id
-          VALUES (?, ?, CONVERT(datetime, ?, 120), CONVERT(datetime, ?, 120), 'Pendente', ?);
-          COMMIT TRANSACTION;
+          UPDATE Clientes SET nome = ? WHERE id = @clienteId;
+      END
+
+      -- Impede que o mesmo cliente faça dois agendamentos no mesmo horário (duplo clique)
+      IF EXISTS (
+          SELECT 1 FROM Agendamentos
+          WHERE cliente_id = @clienteId
+            AND status <> 'Cancelado'
+            AND data_hora_inicio < @dtFim
+            AND data_hora_fim > @dtInicio
+      )
+      BEGIN
+          ROLLBACK TRANSACTION;
+          SELECT -1 AS id, -1 AS cliente_id, -1 AS barbeiro_id;
+      END
+      ELSE
+      BEGIN
+          DECLARE @barbeiroEscolhido INT = NULL;
+
+          ${checksBarbeirosSql}
+
+          IF @barbeiroEscolhido IS NULL
+          BEGIN
+              ROLLBACK TRANSACTION;
+              SELECT -1 AS id, -1 AS cliente_id, -1 AS barbeiro_id;
+          END
+          ELSE
+          BEGIN
+              INSERT INTO Agendamentos (cliente_id, barbeiro_id, data_hora_inicio, data_hora_fim, status, observacao)
+              VALUES (@clienteId, @barbeiroEscolhido, @dtInicio, @dtFim, 'Pendente', ?);
+
+              DECLARE @agendamentoId INT = SCOPE_IDENTITY();
+
+              INSERT INTO AgendamentoServicos (agendamento_id, servico_id, preco_historico, duracao_historico)
+              VALUES ${insertServicosValuesSql};
+
+              COMMIT TRANSACTION;
+              SELECT @agendamentoId AS id, @clienteId AS cliente_id, @barbeiroEscolhido AS barbeiro_id;
+          END
       END
     `;
 
-    const novoAgendamento = await querySql<{ id: number }>(atomicQuery, [
-      barbeiroFinal.id,
-      dtFimToleranciaSql,
-      dtInicioSql,
-      clienteId,
-      barbeiroFinal.id,
+    const res = await querySql<{ id: number; cliente_id: number; barbeiro_id: number }>(atomicQuery, [
       dtInicioSql,
       dtFimSql,
-      input.observacao || null
+      telLimpo,
+      nomeLimpo,
+      telLimpo,
+      nomeLimpo,
+      obsLimpa,
     ]);
 
-    const agendamentoId = novoAgendamento && novoAgendamento.length > 0 ? novoAgendamento[0].id : -1;
-
-    if (!agendamentoId || agendamentoId <= 0) {
+    const row = res && res.length > 0 ? res[0] : null;
+    if (!row || !row.id || row.id <= 0) {
       return {
         sucesso: false,
-        erro: 'Este horário acabou de ser reservado por outro cliente em um agendamento simultâneo. Por favor, escolha outro horário disponível.'
+        erro: 'O horário selecionado já está ocupado para este barbeiro. Por favor, escolha outro horário disponível.',
+        statusCode: 409,
       };
     }
 
-    // 4. Inserir Serviços do Agendamento (relação N:N com histórico de preço e duração)
-    for (const s of servicosEscolhidos) {
-      await querySql(
-        `INSERT INTO AgendamentoServicos (agendamento_id, servico_id, preco_historico, duracao_historico)
-         VALUES (?, ?, ?, ?)`,
-        [agendamentoId, s.id, s.preco, s.duracao_min]
-      );
-    }
+    const barbeiroFinal = barbeiros.find(b => Number(b.id) === Number(row.barbeiro_id)) || candidatos[0];
 
-    // 5. Gerar link do Google Calendar
     const calendarUrl = generateGoogleCalendarUrl({
       titulo: `Barbearia Val: ${servicosEscolhidos.map(s => s.nome).join(' + ')}`,
-      clienteNome: input.clienteNome,
+      clienteNome: nomeLimpo,
       clienteTelefone: telLimpo,
       barbeiroNome: barbeiroFinal.nome,
       servicosNomes: servicosEscolhidos.map(s => s.nome),
       valorTotal,
       dataHoraInicio: dtInicioIsoLocal,
-      duracaoMinutos: duracaoTotalMin
+      duracaoMinutos: duracaoTotalMin,
     });
 
     return {
       sucesso: true,
       agendamento: {
-        id: agendamentoId,
-        cliente_id: clienteId,
-        cliente_nome: input.clienteNome,
+        id: row.id,
+        cliente_id: row.cliente_id,
+        cliente_nome: nomeLimpo,
         cliente_whatsapp: telLimpo,
         barbeiro_id: barbeiroFinal.id,
         barbeiro_nome: barbeiroFinal.nome,
         data_hora_inicio: dtInicioIsoLocal,
         data_hora_fim: dtFimIsoLocal,
         status: 'Pendente',
-        observacao: input.observacao,
+        observacao: obsLimpa,
         servicos: servicosEscolhidos,
         valor_total: valorTotal,
         duracao_total: duracaoTotalMin,
-        google_calendar_url: calendarUrl
-      }
+        google_calendar_url: calendarUrl,
+      },
     };
   } catch (error: any) {
     console.error('Erro ao gravar agendamento no SQL Server:', error);
-    return { sucesso: false, erro: 'Falha ao registrar agendamento no banco SQL Server: ' + error.message };
+    return {
+      sucesso: false,
+      erro: 'Falha ao registrar agendamento no banco SQL Server: ' + error.message,
+      statusCode: 500,
+    };
   }
 }
 
 // -------------------------------------------------------------
 // LISTAGEM ADMIN & STATUS NO SQL SERVER
 // -------------------------------------------------------------
+export const STATUS_AGENDAMENTO_VALIDOS = ['Pendente', 'Confirmado', 'Concluído', 'Cancelado', 'Faltou'] as const;
+
 export async function listarAgendamentosAdmin(filtroBarbeiroId?: number): Promise<AgendamentoItem[]> {
   try {
     let query = `
@@ -412,8 +545,8 @@ export async function listarAgendamentosAdmin(filtroBarbeiroId?: number): Promis
         servicosNomes: ['Corte / Barba'],
         valorTotal: 0,
         dataHoraInicio: item.data_hora_inicio,
-        duracaoMinutos: 60
-      })
+        duracaoMinutos: 60,
+      }),
     }));
   } catch (error) {
     console.error('Erro ao listar agendamentos no SQL Server:', error);
@@ -426,8 +559,11 @@ export async function atualizarStatusAgendamento(
   status: 'Pendente' | 'Confirmado' | 'Concluído' | 'Cancelado' | 'Faltou'
 ): Promise<boolean> {
   try {
-    await querySql('UPDATE Agendamentos SET status = ? WHERE id = ?', [status, id]);
-    return true;
+    const rows = await querySql<{ afetados: number }>(
+      'SET NOCOUNT ON; UPDATE Agendamentos SET status = ? WHERE id = ?; SELECT @@ROWCOUNT AS afetados;',
+      [status, id]
+    );
+    return Boolean(rows && rows[0] && rows[0].afetados > 0);
   } catch (error) {
     console.error('Erro ao atualizar status no SQL Server:', error);
     return false;
