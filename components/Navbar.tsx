@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Calendar, Menu, X, Scissors, Clock } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,31 +50,10 @@ export default function Navbar() {
           <Link href="/#contato" className="text-sm font-medium text-[#B8B5AE] hover:text-[#D4AF37] transition-colors">
             Localização
           </Link>
-          <Link href="/admin" className="text-xs font-semibold px-2.5 py-1 rounded bg-[#181B22] text-[#8C7426] hover:text-[#D4AF37] border border-[#2B2E3A] transition-colors">
-            Painel Barbearia
-          </Link>
         </nav>
-
-        {/* CTA Button */}
-        <div className="hidden md:flex items-center">
-          <Link
-            href="/agendamento"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#D4AF37] text-black font-semibold text-sm hover:bg-[#E5C05B] transition-all transform active:scale-95 shadow-md shadow-[#D4AF37]/20"
-          >
-            <Calendar className="w-4 h-4" />
-            Agendar Horário
-          </Link>
-        </div>
 
         {/* Mobile Menu Button */}
         <div className="flex md:hidden items-center gap-2">
-          <Link
-            href="/agendamento"
-            className="px-3 py-1.5 rounded-md bg-[#D4AF37] text-black font-semibold text-xs flex items-center gap-1.5"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            Agendar
-          </Link>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-2 rounded-lg bg-[#181B22] text-[#F5F3EF] border border-[#2B2E3A]"
@@ -123,18 +102,8 @@ export default function Navbar() {
           >
             Localização & Horários
           </Link>
-          <div className="pt-3 border-t border-[#252833] flex justify-between items-center">
-            <Link
-              href="/admin"
-              onClick={() => setMenuOpen(false)}
-              className="text-xs text-[#8C7426] hover:text-[#D4AF37]"
-            >
-              Acesso Barbeiros (Painel)
-            </Link>
-          </div>
         </div>
       )}
     </header>
   );
 }
-

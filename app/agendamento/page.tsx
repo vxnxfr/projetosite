@@ -36,13 +36,14 @@ export default function AgendamentoPage() {
   const [servicosSelecionados, setServicosSelecionados] = useState<number[]>([]);
   const [barbeiroSelecionado, setBarbeiroSelecionado] = useState<number | null>(null); // null = Sem preferência
   const [dataSelecionada, setDataSelecionada] = useState<string>(() => {
-    // Data de hoje formatada YYYY-MM-DD
+    // Data de hoje formatada YYYY-MM-DD em horário local
     const hoje = new Date();
     // Se for segunda (dia 1), seleciona amanhã terça
     if (hoje.getDay() === 1) {
       hoje.setDate(hoje.getDate() + 1);
     }
-    return hoje.toISOString().split('T')[0];
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
   });
   const [horarioSelecionado, setHorarioSelecionado] = useState<string>('');
   const [nomeCliente, setNomeCliente] = useState<string>('');
@@ -93,7 +94,7 @@ export default function AgendamentoPage() {
     };
   }, [servicos, servicosSelecionados]);
 
-  // Carregar horários disponíveis quando a data, serviços ou barbeiro mudarem
+  // Carregar horários disponíveis quando a data, serviços, barbeiro ou etapa mudarem
   useEffect(() => {
     if (!dataSelecionada || duracaoTotal === 0) {
       setHorariosSlots([]);
@@ -106,12 +107,13 @@ export default function AgendamentoPage() {
     const params = new URLSearchParams({
       data: dataSelecionada,
       duracao: duracaoTotal.toString(),
+      _t: Date.now().toString()
     });
     if (barbeiroSelecionado) {
       params.append('barbeiroId', barbeiroSelecionado.toString());
     }
 
-    fetch(`/api/horarios?${params.toString()}`)
+    fetch(`/api/horarios?${params.toString()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -122,7 +124,7 @@ export default function AgendamentoPage() {
       })
       .catch(() => setHorariosSlots([]))
       .finally(() => setCarregandoHorarios(false));
-  }, [dataSelecionada, duracaoTotal, barbeiroSelecionado]);
+  }, [dataSelecionada, duracaoTotal, barbeiroSelecionado, etapa]);
 
   // Alternar serviço
   const toggleServico = (id: number) => {
@@ -148,9 +150,8 @@ export default function AgendamentoPage() {
     setEnviando(true);
     setErroEnvio(null);
 
-    const [hora, min] = horarioSelecionado.split(':');
-    const [ano, mes, dia] = dataSelecionada.split('-').map(Number);
-    const dataHoraInicio = new Date(ano, mes - 1, dia, Number(hora), Number(min), 0).toISOString();
+    // Envia no fuso horário local exato (YYYY-MM-DDTHH:mm:00) sem desvio UTC
+    const dataHoraInicio = `${dataSelecionada}T${horarioSelecionado}:00`;
 
     try {
       const response = await fetch('/api/agendamentos', {
@@ -430,7 +431,7 @@ export default function AgendamentoPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[#B8B5AE] uppercase tracking-wider">
-                  Horários Livres ({horariosSlots.length})
+                  Horários Livres {barbeiroSelecionado ? `de ${barbeiros.find(b => b.id === barbeiroSelecionado)?.nome || ''}` : '(Val ou Heitor)'} ({horariosSlots.length})
                 </span>
                 {carregandoHorarios && (
                   <span className="text-xs text-[#D4AF37] animate-pulse">Atualizando agenda...</span>
@@ -439,7 +440,7 @@ export default function AgendamentoPage() {
 
               {carregandoHorarios ? (
                 <div className="py-12 text-center text-sm text-[#8E8B82] bg-[#13151D] border border-[#242836] rounded-xl">
-                  Consultando disponibilidade...
+                  Consultando disponibilidade no banco...
                 </div>
               ) : horariosSlots.length === 0 ? (
                 <div className="py-10 text-center bg-[#13151D] border border-[#242836] rounded-xl p-6 space-y-2">
@@ -460,13 +461,18 @@ export default function AgendamentoPage() {
                         key={slot.horario}
                         type="button"
                         onClick={() => setHorarioSelecionado(slot.horario)}
-                        className={`py-3 px-2 rounded-xl text-center border font-semibold text-sm transition-all ${
+                        className={`py-2.5 px-2 rounded-xl text-center border transition-all flex flex-col items-center justify-center ${
                           isSelected
                             ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 scale-[1.02]'
                             : 'bg-[#151821] text-[#F5F3EF] border-[#272B3A] hover:border-[#D4AF37]/60 hover:bg-[#1B1E29]'
                         }`}
                       >
-                        {slot.horario}
+                        <span className="font-semibold text-sm">{slot.horario}</span>
+                        {slot.barbeiro_nome && (
+                          <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-black/80 font-bold' : 'text-[#8E8B82]'}`}>
+                            {slot.barbeiro_nome}
+                          </span>
+                        )}
                       </button>
                     );
                   })}

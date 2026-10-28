@@ -3,6 +3,38 @@ import { Barbeiro, Servico, AgendamentoItem, SlotHorario } from './types';
 import { generateGoogleCalendarUrl } from './googleCalendar';
 
 // -------------------------------------------------------------
+// HELPERS DE DATA/HORA LOCAL (AMERICA/SAO_PAULO - SEM DESVIO UTC)
+// -------------------------------------------------------------
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+export function formatLocalSqlDateTime(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+export function formatLocalIsoDateTime(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+export function formatLocalDateOnly(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function parseLocalDateTime(str: string): Date {
+  // Se terminar com Z (UTC ISO), new Date(str) já converte para hora local nos getters
+  if (str.endsWith('Z')) {
+    return new Date(str);
+  }
+  // Formato "YYYY-MM-DDTHH:mm:ss" ou "YYYY-MM-DD HH:mm:ss"
+  const clean = str.replace('T', ' ').trim();
+  const [datePart, timePart = '00:00:00'] = clean.split(' ');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(v => parseInt(v, 10));
+  return new Date(y, m - 1, d, hh, mm, ss || 0);
+}
+
+// -------------------------------------------------------------
 // SERVIÇOS E BARBEIROS (DIRETO DO SQL SERVER)
 // -------------------------------------------------------------
 export async function getServicos(): Promise<Servico[]> {
@@ -71,7 +103,7 @@ export async function getHorariosLivres(
   for (let minAtual = abreHora * 60 + abreMin; minAtual + duracaoTotalMin <= fechamentoMinutos; minAtual += 30) {
     const hora = Math.floor(minAtual / 60);
     const minuto = minAtual % 60;
-    const horarioStr = `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`;
+    const horarioStr = `${pad(hora)}:${pad(minuto)}`;
 
     const slotInicio = new Date(year, month - 1, day, hora, minuto, 0);
     const slotFim = new Date(slotInicio.getTime() + duracaoTotalMin * 60000);
@@ -86,9 +118,9 @@ export async function getHorariosLivres(
 
     for (const b of barbeirosParaVerificar) {
       const conflito = todosAgendamentos.some(ag => {
-        if (ag.barbeiro_id !== b.id || ag.status === 'Cancelado') return false;
-        const agInicio = new Date(ag.data_hora_inicio).getTime();
-        const agFimComTolerancia = new Date(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
+        if (Number(ag.barbeiro_id) !== Number(b.id) || ag.status === 'Cancelado') return false;
+        const agInicio = parseLocalDateTime(ag.data_hora_inicio).getTime();
+        const agFimComTolerancia = parseLocalDateTime(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
         const slotInicioTempo = slotInicio.getTime();
         const slotFimTempo = slotFim.getTime();
 
@@ -96,7 +128,7 @@ export async function getHorariosLivres(
       });
 
       if (!conflito) {
-        const contagemHoje = todosAgendamentos.filter(ag => ag.barbeiro_id === b.id && ag.status !== 'Cancelado').length;
+        const contagemHoje = todosAgendamentos.filter(ag => Number(ag.barbeiro_id) === Number(b.id) && ag.status !== 'Cancelado').length;
         if (contagemHoje < menorCargaAgendamentos) {
           menorCargaAgendamentos = contagemHoje;
           barbeiroDisponivel = b;
@@ -122,13 +154,13 @@ async function getAgendamentosDoDia(dataStr: string): Promise<AgendamentoItem[]>
     const sqlQuery = `
       SELECT a.id, a.cliente_id, c.nome as cliente_nome, c.whatsapp as cliente_whatsapp,
              a.barbeiro_id, b.nome as barbeiro_nome,
-             CONVERT(varchar, a.data_hora_inicio, 126) as data_hora_inicio,
-             CONVERT(varchar, a.data_hora_fim, 126) as data_hora_fim,
+             CONVERT(varchar(19), a.data_hora_inicio, 126) as data_hora_inicio,
+             CONVERT(varchar(19), a.data_hora_fim, 126) as data_hora_fim,
              a.status, a.observacao
       FROM Agendamentos a
       JOIN Clientes c ON a.cliente_id = c.id
       JOIN Barbeiros b ON a.barbeiro_id = b.id
-      WHERE CONVERT(varchar, a.data_hora_inicio, 23) = ?
+      WHERE CONVERT(varchar(10), a.data_hora_inicio, 23) = ?
         AND a.status <> 'Cancelado'
     `;
     const rows = await querySql<AgendamentoItem>(sqlQuery, [dataStr]);
@@ -170,9 +202,9 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
   const duracaoTotalMin = servicosEscolhidos.reduce((acc, s) => acc + s.duracao_min, 0);
   const valorTotal = servicosEscolhidos.reduce((acc, s) => acc + s.preco, 0);
 
-  const dtInicio = new Date(input.dataHoraInicio);
+  const dtInicio = parseLocalDateTime(input.dataHoraInicio);
   const dtFim = new Date(dtInicio.getTime() + duracaoTotalMin * 60000);
-  const dataDiaStr = dtInicio.toISOString().split('T')[0];
+  const dataDiaStr = formatLocalDateOnly(dtInicio);
 
   const barbeiros = await getBarbeiros();
   const todosAgendamentosDia = await getAgendamentosDoDia(dataDiaStr);
@@ -180,20 +212,20 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
 
   let barbeiroFinal: Barbeiro | null = null;
   const candidatos = input.barbeiroId
-    ? barbeiros.filter(b => b.id === input.barbeiroId)
+    ? barbeiros.filter(b => Number(b.id) === Number(input.barbeiroId))
     : barbeiros;
 
   let menorCarga = Infinity;
   for (const b of candidatos) {
     const conflito = todosAgendamentosDia.some(ag => {
-      if (ag.barbeiro_id !== b.id || ag.status === 'Cancelado') return false;
-      const agIni = new Date(ag.data_hora_inicio).getTime();
-      const agFimTolerancia = new Date(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
+      if (Number(ag.barbeiro_id) !== Number(b.id) || ag.status === 'Cancelado') return false;
+      const agIni = parseLocalDateTime(ag.data_hora_inicio).getTime();
+      const agFimTolerancia = parseLocalDateTime(ag.data_hora_fim).getTime() + (toleranciaLimpezaMin * 60000);
       return (dtInicio.getTime() < agFimTolerancia && dtFim.getTime() > agIni);
     });
 
     if (!conflito) {
-      const carga = todosAgendamentosDia.filter(ag => ag.barbeiro_id === b.id && ag.status !== 'Cancelado').length;
+      const carga = todosAgendamentosDia.filter(ag => Number(ag.barbeiro_id) === Number(b.id) && ag.status !== 'Cancelado').length;
       if (carga < menorCarga) {
         menorCarga = carga;
         barbeiroFinal = b;
@@ -202,7 +234,7 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
   }
 
   if (!barbeiroFinal) {
-    return { sucesso: false, erro: 'O horário selecionado não está mais disponível. Por favor, escolha outro horário.' };
+    return { sucesso: false, erro: 'O horário selecionado já está ocupado para este barbeiro. Por favor, escolha outro horário.' };
   }
 
   try {
@@ -221,9 +253,11 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
       clienteId = novoCli[0].id;
     }
 
-    // 2. Formatar data para SQL Server (YYYY-MM-DD HH:mm:ss)
-    const dtInicioSql = dtInicio.toISOString().replace('T', ' ').substring(0, 19);
-    const dtFimSql = dtFim.toISOString().replace('T', ' ').substring(0, 19);
+    // 2. Formatar data em horário local para SQL Server (YYYY-MM-DD HH:mm:ss)
+    const dtInicioSql = formatLocalSqlDateTime(dtInicio);
+    const dtFimSql = formatLocalSqlDateTime(dtFim);
+    const dtInicioIsoLocal = formatLocalIsoDateTime(dtInicio);
+    const dtFimIsoLocal = formatLocalIsoDateTime(dtFim);
 
     // 3. Inserir Agendamento no SQL Server
     const novoAgendamento = await querySql<{ id: number }>(
@@ -252,7 +286,7 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
       barbeiroNome: barbeiroFinal.nome,
       servicosNomes: servicosEscolhidos.map(s => s.nome),
       valorTotal,
-      dataHoraInicio: dtInicio.toISOString(),
+      dataHoraInicio: dtInicioIsoLocal,
       duracaoMinutos: duracaoTotalMin
     });
 
@@ -265,8 +299,8 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
         cliente_whatsapp: telLimpo,
         barbeiro_id: barbeiroFinal.id,
         barbeiro_nome: barbeiroFinal.nome,
-        data_hora_inicio: dtInicio.toISOString(),
-        data_hora_fim: dtFim.toISOString(),
+        data_hora_inicio: dtInicioIsoLocal,
+        data_hora_fim: dtFimIsoLocal,
         status: 'Pendente',
         observacao: input.observacao,
         servicos: servicosEscolhidos,
@@ -289,8 +323,8 @@ export async function listarAgendamentosAdmin(filtroBarbeiroId?: number): Promis
     let query = `
       SELECT a.id, a.cliente_id, c.nome as cliente_nome, c.whatsapp as cliente_whatsapp,
              a.barbeiro_id, b.nome as barbeiro_nome,
-             CONVERT(varchar, a.data_hora_inicio, 126) as data_hora_inicio,
-             CONVERT(varchar, a.data_hora_fim, 126) as data_hora_fim,
+             CONVERT(varchar(19), a.data_hora_inicio, 126) as data_hora_inicio,
+             CONVERT(varchar(19), a.data_hora_fim, 126) as data_hora_fim,
              a.status, a.observacao
       FROM Agendamentos a
       JOIN Clientes c ON a.cliente_id = c.id

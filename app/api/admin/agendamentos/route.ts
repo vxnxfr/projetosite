@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listarAgendamentosAdmin, atualizarStatusAgendamento } from '@/lib/repository';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -8,7 +11,11 @@ export async function GET(request: NextRequest) {
     const barbeiroId = barbeiroIdStr && barbeiroIdStr !== 'null' ? parseInt(barbeiroIdStr, 10) : undefined;
 
     const lista = await listarAgendamentosAdmin(barbeiroId);
-    return NextResponse.json(lista);
+    return NextResponse.json(lista, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -33,4 +40,3 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

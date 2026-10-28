@@ -61,48 +61,19 @@ export default async function HomePage() {
               </h1>
               
               <p className="max-w-2xl mx-auto text-base sm:text-lg text-[#B8B5AE] leading-relaxed">
-                Mais do que um corte, um momento de respeito e tradição. Sala de espera aconchegante, mesa de sinuca, bebidas geladas e profissionais de alto nível.
+                Mais do que um corte, um momento de respeito e tradição. Sala de espera aconchegante, refrigerante, cerveja e etc. e profissionais de alto nível.
               </p>
             </div>
 
-            {/* CTAs Principais */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <Link
-                href="/agendamento"
-                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-[#D4AF37] hover:bg-[#E5C05B] text-black font-bold text-base sm:text-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-xl shadow-[#D4AF37]/20"
-              >
-                <Calendar className="w-5 h-5" />
-                Agendar Horário Online
-              </Link>
-
-              <Link
-                href="#servicos"
-                className="w-full sm:w-auto px-7 py-4 rounded-xl bg-[#161922] hover:bg-[#1E222E] border border-[#2B2F3D] text-[#F5F3EF] font-semibold text-base flex items-center justify-center gap-2 transition-colors"
-              >
-                <Scissors className="w-4 h-4 text-[#D4AF37]" />
-                Ver Serviços & Preços
-              </Link>
-            </div>
-
             {/* Highlights */}
-            <div className="pt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto text-left">
+            <div className="pt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
               <div className="p-3.5 rounded-xl bg-[#13151D]/80 border border-[#232733] flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37]">
                   <Beer className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-[#F5F3EF]">Bebidas</h4>
-                  <p className="text-[11px] text-[#8E8B82]">Cerveja gelada</p>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[#13151D]/80 border border-[#232733] flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37]">
-                  <Award className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-[#F5F3EF]">Mesa de Sinuca</h4>
-                  <p className="text-[11px] text-[#8E8B82]">Para descontrair</p>
+                  <p className="text-[11px] text-[#8E8B82]">Refrigerante, cerveja e etc.</p>
                 </div>
               </div>
 
@@ -127,6 +98,75 @@ export default async function HomePage() {
               </div>
             </div>
 
+          </div>
+        </section>
+
+        {/* ========================================================== */}
+        {/* SOBRE NÓS - APRESENTAÇÃO DA BARBEARIA (ANTES DE BARBEIROS) */}
+        {/* ========================================================== */}
+        <section id="sobre" className="py-20 bg-[#0D0F14] border-t border-[#1C1F2A]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+              
+              {/* Texto de Apresentação */}
+              <div className="lg:col-span-7 space-y-5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#181B26] border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold tracking-wider uppercase">
+                  Sobre Nós • Nossa Essência
+                </div>
+
+                <h2 className="font-serif text-3xl sm:text-4xl font-bold text-[#F5F3EF] leading-tight">
+                  Mais que uma barbearia, um ponto de encontro clássico em Poá
+                </h2>
+
+                <p className="text-sm sm:text-base text-[#B8B5AE] leading-relaxed">
+                  Localizada no coração do Jardim Nova Poá, a <strong className="text-[#F5F3EF]">Barbearia Val</strong> nasceu com o propósito de resgatar a atmosfera autêntica das barbearias clássicas dos anos 50 — onde o cliente não vem apenas cortar o cabelo na pressa, mas viver uma experiência de cuidado, respeito e descontração.
+                </p>
+
+                <p className="text-sm text-[#8E8B82] leading-relaxed">
+                  Unimos a tradição da navalha clássica e da barboterapia às técnicas mais modernas de degradê, acabamento e química masculina. Seja para renovar o visual para a semana, bater um papo na nossa sala de espera ou tomar um refrigerante, cerveja e etc., aqui você se sente em casa.
+                </p>
+              </div>
+
+              {/* Destaques da Identidade da Barbearia */}
+              <div className="lg:col-span-5 grid grid-cols-1 gap-4">
+                <div className="p-5 rounded-2xl bg-[#13161F] border border-[#242836] flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-[#D4AF37]/15 text-[#D4AF37] flex-shrink-0">
+                    <Scissors className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-[#F5F3EF]">Excelência nos Detalhes</h3>
+                    <p className="text-xs text-[#B8B5AE] mt-1 leading-relaxed">
+                      Do corte tradicional ao fade moderno e platinado, com acabamento impecável na navalha.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-[#13161F] border border-[#242836] flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-[#D4AF37]/15 text-[#D4AF37] flex-shrink-0">
+                    <Beer className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-[#F5F3EF]">Lazer & Conforto</h3>
+                    <p className="text-xs text-[#B8B5AE] mt-1 leading-relaxed">
+                      Sala de espera espaçosa e confortável, com opções de refrigerante, cerveja e etc. sempre gelados.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-[#13161F] border border-[#242836] flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-[#D4AF37]/15 text-[#D4AF37] flex-shrink-0">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-[#F5F3EF]">Para Todas as Gerações</h3>
+                    <p className="text-xs text-[#B8B5AE] mt-1 leading-relaxed">
+                      Ambiente familiar e acolhedor que atende adultos e crianças com hora marcada e pontualidade.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           </div>
         </section>
 
@@ -263,7 +303,7 @@ export default async function HomePage() {
         {/* CONHEÇA O AMBIENTE & GALERIA COM CARROSSEL DE FOTOS */}
         {/* ========================================================== */}
         <section id="galeria" className="py-20 bg-[#0B0C0E] border-t border-[#1C1F2A]">
-          <div id="sobre" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               
               <div className="space-y-6">
@@ -280,11 +320,7 @@ export default async function HomePage() {
                 <ul className="space-y-3 text-sm text-[#F5F3EF]">
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-[#D4AF37] flex-shrink-0" />
-                    <span>Mesa de sinuca oficial para jogar à vontade</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-[#D4AF37] flex-shrink-0" />
-                    <span>Cervejeira recheada de bebidas sempre geladas</span>
+                    <span>Opções de refrigerante, cerveja e etc. sempre gelados</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-[#D4AF37] flex-shrink-0" />

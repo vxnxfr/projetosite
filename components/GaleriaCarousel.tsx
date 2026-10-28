@@ -17,8 +17,8 @@ const FOTOS_GALERIA = [
   },
   {
     src: '/images/galeria-3.png',
-    titulo: 'Cervejeira & Espaço com Sinuca',
-    subtitulo: 'Bebidas geladas e mesa de sinuca oficial para descontrair'
+    titulo: 'Geladeira & Espaço de Bebidas',
+    subtitulo: 'Opções de refrigerante, cerveja e etc. sempre gelados para você'
   },
   {
     src: '/images/galeria-4.png',

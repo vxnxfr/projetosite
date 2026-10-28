@@ -26,7 +26,7 @@ export default function Footer() {
             </div>
           </div>
           <p className="text-xs leading-relaxed text-[#8E8B82]">
-            Inspirada nas barbearias clássicas dos anos 50. Ambiente aconchegante com sala de espera, cerveja gelada e mesa de sinuca.
+            Inspirada nas barbearias clássicas dos anos 50. Ambiente aconchegante com sala de espera, refrigerante, cerveja e etc.
           </p>
           <div className="pt-2">
             <Image
