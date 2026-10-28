@@ -94,7 +94,7 @@ export default function AgendamentoPage() {
     };
   }, [servicos, servicosSelecionados]);
 
-  // Carregar horários disponíveis quando a data, serviços, barbeiro ou etapa mudarem
+  // Carregar horários disponíveis quando a data, serviços ou barbeiro mudarem
   useEffect(() => {
     if (!dataSelecionada || duracaoTotal === 0) {
       setHorariosSlots([]);
@@ -124,7 +124,7 @@ export default function AgendamentoPage() {
       })
       .catch(() => setHorariosSlots([]))
       .finally(() => setCarregandoHorarios(false));
-  }, [dataSelecionada, duracaoTotal, barbeiroSelecionado, etapa]);
+  }, [dataSelecionada, duracaoTotal, barbeiroSelecionado]);
 
   // Alternar serviço
   const toggleServico = (id: number) => {
@@ -147,6 +147,11 @@ export default function AgendamentoPage() {
 
   // Enviar Agendamento
   const handleFinalizarAgendamento = async () => {
+    if (!dataSelecionada || !horarioSelecionado) {
+      setErroEnvio('Por favor, volte ao Passo 3 e selecione um horário para o agendamento.');
+      return;
+    }
+
     setEnviando(true);
     setErroEnvio(null);
 
@@ -502,6 +507,28 @@ export default function AgendamentoPage() {
               </p>
             </div>
 
+            {/* Resumo visual do horário escolhido */}
+            <div className="p-4 rounded-xl bg-[#181B26] border border-[#D4AF37]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-[#F5F3EF]">
+                <CalendarIcon className="w-4 h-4 text-[#D4AF37]" />
+                <span>
+                  <strong>Data:</strong> {dataSelecionada.split('-').reverse().join('/')}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[#F5F3EF]">
+                <Clock className="w-4 h-4 text-[#D4AF37]" />
+                <span>
+                  <strong>Horário:</strong> {horarioSelecionado || 'Nenhum horário selecionado'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[#F5F3EF]">
+                <User className="w-4 h-4 text-[#D4AF37]" />
+                <span>
+                  <strong>Barbeiro:</strong> {barbeiroSelecionado ? (barbeiros.find(b => b.id === barbeiroSelecionado)?.nome || 'Específico') : 'Sem preferência (Automático)'}
+                </span>
+              </div>
+            </div>
+
             <div className="bg-[#13151D] border border-[#242836] rounded-2xl p-6 space-y-4">
               <div>
                 <label htmlFor="nome-input" className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-wider mb-1.5">
@@ -769,7 +796,7 @@ export default function AgendamentoPage() {
               {etapa === 4 && (
                 <button
                   type="button"
-                  disabled={enviando || !nomeCliente.trim() || whatsappCliente.replace(/\D/g, '').length < 10}
+                  disabled={enviando || !nomeCliente.trim() || whatsappCliente.replace(/\D/g, '').length < 10 || !horarioSelecionado}
                   onClick={handleFinalizarAgendamento}
                   className="px-6 py-2.5 rounded-xl bg-[#D4AF37] hover:bg-[#E5C05B] disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold text-sm flex items-center gap-1.5 transition-all shadow-md active:scale-95"
                 >

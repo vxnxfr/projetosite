@@ -22,6 +22,7 @@ export function formatLocalDateOnly(d: Date): string {
 }
 
 export function parseLocalDateTime(str: string): Date {
+  if (!str) return new Date(NaN);
   // Se terminar com Z (UTC ISO), new Date(str) já converte para hora local nos getters
   if (str.endsWith('Z')) {
     return new Date(str);
@@ -29,8 +30,16 @@ export function parseLocalDateTime(str: string): Date {
   // Formato "YYYY-MM-DDTHH:mm:ss" ou "YYYY-MM-DD HH:mm:ss"
   const clean = str.replace('T', ' ').trim();
   const [datePart, timePart = '00:00:00'] = clean.split(' ');
+  if (!datePart || !timePart) return new Date(NaN);
   const [y, m, d] = datePart.split('-').map(Number);
-  const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(v => parseInt(v, 10));
+  const timePieces = timePart.split(':');
+  if (timePieces.length < 2) return new Date(NaN);
+  const hh = parseInt(timePieces[0], 10);
+  const mm = parseInt(timePieces[1], 10);
+  const ss = timePieces[2] ? parseInt(timePieces[2], 10) : 0;
+  if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(hh) || isNaN(mm)) {
+    return new Date(NaN);
+  }
   return new Date(y, m - 1, d, hh, mm, ss || 0);
 }
 
@@ -203,6 +212,9 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
   const valorTotal = servicosEscolhidos.reduce((acc, s) => acc + s.preco, 0);
 
   const dtInicio = parseLocalDateTime(input.dataHoraInicio);
+  if (isNaN(dtInicio.getTime())) {
+    return { sucesso: false, erro: 'Data e horário de início inválidos ou incompletos. Por favor, volte ao Passo 3 e selecione um horário.' };
+  }
   const dtFim = new Date(dtInicio.getTime() + duracaoTotalMin * 60000);
   const dataDiaStr = formatLocalDateOnly(dtInicio);
 
