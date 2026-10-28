@@ -4,12 +4,12 @@ import FloatingWhatsApp from '@/components/FloatingWhatsApp';
 
 export const metadata: Metadata = {
   title: 'Barbearia Val | Barbearia Clássica em Poá - SP',
-  description: 'Barbearia clássica estilo anos 50 em Poá/SP. Cortes masculinos, barba alinhada, ambiente climatizado com refrigerante, cerveja e etc. Agende online com Val ou Heitor.',
+  description: 'Barbearia clássica estilo anos 50 em Poá/SP. Cortes masculinos, barba alinhada, ambiente climatizado com sala de espera e bebidas geladas. Agende online com Val ou Heitor.',
   keywords: ['barbearia em poá', 'barbearia val', 'corte masculino poá', 'barba poá', 'agendamento barbearia poá', 'val barbearia'],
   authors: [{ name: 'Barbearia Val' }],
   openGraph: {
     title: 'Barbearia Val | Estilo Clássico dos Anos 50 em Poá - SP',
-    description: 'Ambiente vintage com sala de espera, refrigerante, cerveja e etc. e os melhores profissionais de Poá.',
+    description: 'Ambiente vintage com sala de espera aconchegante, bebidas geladas e os melhores barbeiros de Poá.',
     url: 'https://www.valbarbearia.com',
     siteName: 'Barbearia Val',
     locale: 'pt_BR',

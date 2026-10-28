@@ -61,7 +61,7 @@ export default async function HomePage() {
               </h1>
               
               <p className="max-w-2xl mx-auto text-base sm:text-lg text-[#B8B5AE] leading-relaxed">
-                Mais do que um corte, um momento de respeito e tradição. Sala de espera aconchegante, refrigerante, cerveja e etc. e profissionais de alto nível.
+                Mais do que um corte, uma experiência de respeito e tradição. Sala de espera aconchegante, refrigerantes e cervejas sempre gelados, e profissionais de alto nível.
               </p>
             </div>
 
@@ -73,7 +73,7 @@ export default async function HomePage() {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-[#F5F3EF]">Bebidas</h4>
-                  <p className="text-[11px] text-[#8E8B82]">Refrigerante, cerveja e etc.</p>
+                  <p className="text-[11px] text-[#8E8B82]">Refrigerantes & cervejas</p>
                 </div>
               </div>
 
@@ -123,7 +123,7 @@ export default async function HomePage() {
                 </p>
 
                 <p className="text-sm text-[#8E8B82] leading-relaxed">
-                  Unimos a tradição da navalha clássica e da barboterapia às técnicas mais modernas de degradê, acabamento e química masculina. Seja para renovar o visual para a semana, bater um papo na nossa sala de espera ou tomar um refrigerante, cerveja e etc., aqui você se sente em casa.
+                  Unimos a tradição da navalha clássica e da barboterapia às técnicas mais modernas de degradê, acabamento e química masculina. Seja para renovar o visual para a semana, bater um papo na nossa sala de espera ou tomar uma bebida gelada, aqui você se sente em casa.
                 </p>
               </div>
 
@@ -148,7 +148,7 @@ export default async function HomePage() {
                   <div>
                     <h3 className="font-serif text-lg font-bold text-[#F5F3EF]">Lazer & Conforto</h3>
                     <p className="text-xs text-[#B8B5AE] mt-1 leading-relaxed">
-                      Sala de espera espaçosa e confortável, com opções de refrigerante, cerveja e etc. sempre gelados.
+                      Sala de espera espaçosa e acolhedora, com refrigerantes e cervejas sempre à temperatura ideal.
                     </p>
                   </div>
                 </div>
@@ -324,7 +324,7 @@ export default async function HomePage() {
                 <ul className="space-y-3 text-sm text-[#F5F3EF]">
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-[#D4AF37] flex-shrink-0" />
-                    <span>Opções de refrigerante, cerveja e etc. sempre gelados</span>
+                    <span>Geladeira abastecida com refrigerantes e cervejas bem gelados</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-[#D4AF37] flex-shrink-0" />

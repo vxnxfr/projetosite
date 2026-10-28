@@ -263,7 +263,7 @@ export async function criarAgendamento(input: NovoAgendamentoInput): Promise<{
     const novoAgendamento = await querySql<{ id: number }>(
       `INSERT INTO Agendamentos (cliente_id, barbeiro_id, data_hora_inicio, data_hora_fim, status, observacao)
        OUTPUT INSERTED.id
-       VALUES (?, ?, ?, ?, 'Pendente', ?)`,
+       VALUES (?, ?, CONVERT(datetime, ?, 120), CONVERT(datetime, ?, 120), 'Pendente', ?)`,
       [clienteId, barbeiroFinal.id, dtInicioSql, dtFimSql, input.observacao || null]
     );
 

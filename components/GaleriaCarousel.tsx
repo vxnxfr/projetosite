@@ -18,7 +18,7 @@ const FOTOS_GALERIA = [
   {
     src: '/images/galeria-3.png',
     titulo: 'Geladeira & Espaço de Bebidas',
-    subtitulo: 'Opções de refrigerante, cerveja e etc. sempre gelados para você'
+    subtitulo: 'Refrigerantes e cervejas sempre à temperatura ideal para você relaxar'
   },
   {
     src: '/images/galeria-4.png',
